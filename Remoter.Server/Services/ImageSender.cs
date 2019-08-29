@@ -1,42 +1,48 @@
-﻿using System.Drawing;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+﻿using Remoter.Server.Services.Abstractions;
+using System;
+using System.Text;
 
 namespace Remoter.Server.Services
 {
-    public class ImageSender
+    public class ImageSender : TcpServer
     {
-        private ScreenshotProvider _screenshotProvider;
-        private TcpServer _server = new TcpServer();
-        private int _fps = 30;
-
-        public ImageSender(float scaleFactor, int fps)
+        public void SendImage(byte[] imageData, int width, int height)
         {
-            _fps = fps;
-            _screenshotProvider = new ScreenshotProvider(Screen.PrimaryScreen.Bounds, scaleFactor);
+            if (Client == null || !Client.Connected)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!WaitForHandshake(1))
+                {
+                    return;
+                }
+                var metaData = $"{imageData.Length}|";
+                var metaDataBytes = Encoding.UTF8.GetBytes(metaData);
+                Stream.Write(metaDataBytes, 0, metaData.Length);
+
+                if (!WaitForHandshake(2))
+                {
+                    return;
+                }
+
+                Stream.Write(imageData, 0, imageData.Length);
+            }
+            catch
+            {
+                Console.WriteLine("Data loss");
+                Stream.Close();
+            }
         }
 
-        public void Start()
+        private bool WaitForHandshake(int handshakeIndex)
         {
-            _server.Start();
-            Task.Run(() => Update());
-        }
+            var buffer = new byte[1];
+            Stream.Read(buffer, 0, buffer.Length);
 
-        private void Update()
-        {
-            var image = _screenshotProvider.CaptureScreenshot();
-            var bytes = ImageToByte(image);
-            _server.SendImage(bytes, image.Width, image.Height);
-            Thread.Sleep(1000 / _fps);
-            Task.Run(() => Update());
+            return buffer[0] == handshakeIndex;
         }
-
-        private byte[] ImageToByte(Image img)
-        {
-            ImageConverter converter = new ImageConverter();
-            return (byte[])converter.ConvertTo(img, typeof(byte[]));
-        }
-
     }
 }

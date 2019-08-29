@@ -2,18 +2,13 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Remoter.Client.Services
 {
-    public class RemoterTcpClient
+    public class ImageClient
     {
         private NetworkStream _stream;
-
-        public RemoterTcpClient()
-        {
-        }
 
         public void Connect()
         {
@@ -24,30 +19,34 @@ namespace Remoter.Client.Services
 
         public void ListenForScreenshots(Action<byte[]> onImageDataReceived)
         {
-            MakeHandshake(1);
+            try
+            {
+                MakeHandshake(1);
 
-            var bytes = new byte[100];
+                var bytes = new byte[100];
 
-            _stream.Read(bytes, 0, bytes.Length);
+                _stream.Read(bytes, 0, bytes.Length);
 
-            var package = Encoding.UTF8.GetString(bytes);
+                var package = Encoding.UTF8.GetString(bytes);
 
-            var data = package.Split('|');
+                var data = package.Split('|');
 
-            var imageDataSize = int.Parse(data[0]);
-            var imageBytes = new byte[imageDataSize];
+                var imageDataSize = int.Parse(data[0]);
+                var imageBytes = new byte[imageDataSize];
 
-            MakeHandshake(2);
+                MakeHandshake(2);
 
-            _stream.Read(imageBytes, 0, imageBytes.Length);
+                _stream.Read(imageBytes, 0, imageBytes.Length);
 
-            onImageDataReceived(imageBytes);
-
-            Thread.Sleep(500);
+                onImageDataReceived(imageBytes);
+            }
+            catch
+            {
+            }
 
             Task.Run(() => ListenForScreenshots(onImageDataReceived));
         }
-
+        
         private void MakeHandshake(int handshakeIndex)
         {
             _stream.Write(new byte[1] { (byte)handshakeIndex }, 0, 1);
